@@ -33,24 +33,36 @@ router.post('/upsert', async (req, res, next) => {
     try {
         const { error, value } = Joi.object({
             mobile: Joi.string().min(6).max(20).required(),
-            name: Joi.string().allow(null, ''),
-            email: Joi.string().email().allow(null, ''),
-            gender: Joi.string().valid('male','female','other').allow(null, ''),
-            dob: Joi.date().allow(null),
-            address: Joi.string().allow(null, '')
+            name: Joi.string().allow('', null),
+
+            // NEW: territory mandatory, only digits, length >= 5
+            territory: Joi.string().pattern(/^\d{5,}$/).required(),
+
+            // NEW: optional
+            instituteName: Joi.string().max(120).allow('', null)
         }).validate(req.body, { stripUnknown: true });
 
         if (error) return res.status(400).json({ ok: false, message: error.message });
 
-        const { mobile, ...rest } = value;
+        const { mobile, name, territory, instituteName } = value;
 
         let user = await User.findOne({ where: { mobile } });
         const created = !user;
 
         if (created) {
-            user = await User.create({ mobile, ...rest, verifiedAt: new Date() });
+            user = await User.create({
+                mobile,
+                name: name || null,
+                territory,
+                instituteName: instituteName || null,
+                verifiedAt: new Date()
+            });
         } else {
-            await user.update(rest);
+            await user.update({
+                name: name || null,
+                territory,
+                instituteName: instituteName || null
+            });
         }
 
         res.json({
@@ -60,10 +72,8 @@ router.post('/upsert', async (req, res, next) => {
                 id: user.id,
                 mobile: user.mobile,
                 name: user.name,
-                email: user.email,
-                gender: user.gender,
-                dob: user.dob,
-                address: user.address,
+                territory: user.territory,
+                instituteName: user.instituteName,
                 verifiedAt: user.verifiedAt
             }
         });
@@ -76,14 +86,9 @@ router.get('/by-mobile', async (req, res, next) => {
         const { error, value } = Joi.object({
             mobile: Joi.string().min(6).max(20).required()
         }).validate(req.query);
-
         if (error) return res.status(400).json({ ok: false, message: error.message });
 
-        const candidates = normalizeCandidates(value.mobile);
-
-        const user = await User.findOne({
-            where: { mobile: { [Op.in]: candidates } }
-        });
+        const user = await User.findOne({ where: { mobile: value.mobile } });
 
         return res.json({
             ok: true,
@@ -91,10 +96,8 @@ router.get('/by-mobile', async (req, res, next) => {
                 id: user.id,
                 mobile: user.mobile,
                 name: user.name,
-                email: user.email,
-                gender: user.gender,
-                dob: user.dob,
-                address: user.address,
+                territory: user.territory,
+                instituteName: user.instituteName,
                 verifiedAt: user.verifiedAt
             } : null
         });
