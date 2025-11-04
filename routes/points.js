@@ -112,16 +112,27 @@ router.post('/add', async (req, res, next) => {
 // - Top users by totalPoints desc
 // - Tie-breaker: older updatedAt ranks higher
 // ---------------------------------------------------
+// REPLACE ONLY the /points/leaderboard handler in routes/points.js with this:
+
 router.get('/leaderboard', async (req, res, next) => {
     try {
-        const limit = Math.min(parseInt(req.query.limit || '50', 10), 100);
-        const offset = Math.max(parseInt(req.query.offset || '0', 10), 0);
+        const { error, value } = Joi.object({
+            limit: Joi.number().integer().min(1).max(100).default(50),
+            offset: Joi.number().integer().min(0).default(0),
+            mobile: Joi.string().min(6).max(20).allow('', null),
+            userId: Joi.number().integer().allow(null)
+        }).validate(req.query, { stripUnknown: true });
+        if (error) return res.status(400).json({ ok: false, message: error.message });
 
+        const limit  = value.limit;
+        const offset = value.offset;
+
+        // 1) Leaderboard list (same as before)
         const rows = await UserPoint.findAll({
             include: [{ model: User, attributes: ['id', 'name', 'mobile'] }],
             order: [
                 ['totalPoints', 'DESC'],
-                ['updatedAt', 'ASC']
+                ['updatedAt', 'ASC'] // tie-breaker: older updatedAt ranks higher
             ],
             limit,
             offset
@@ -139,7 +150,50 @@ router.get('/leaderboard', async (req, res, next) => {
             lastPlayedAt: r.lastPlayedAt
         }));
 
-        res.json({ ok: true, count: results.length, results });
+        // 2) Optional: compute "my_point" if mobile/userId provided
+        let my_point = null;
+        if (value.userId || (value.mobile && value.mobile.trim() !== '')) {
+            // resolve user
+            let me = null;
+            if (value.userId) {
+                me = await User.findByPk(value.userId);
+            } else {
+                const candidates = normalizeCandidates(value.mobile);
+                me = await User.findOne({ where: { mobile: { [Op.in]: candidates } } });
+            }
+            if (!me) return res.status(404).json({ ok: false, message: 'User not found for given identifier' });
+
+            const up = await UserPoint.findOne({ where: { userId: me.id } });
+            if (!up) {
+                my_point = {
+                    user: { id: me.id, name: me.name, mobile: me.mobile },
+                    points: { totalPoints: 0, lastScore: 0, lastPlayedAt: null },
+                    rank: null
+                };
+            } else {
+                const [rankRow] = await sequelize.query(
+                    `SELECT 1 + COUNT(*) AS rank
+           FROM user_points
+           WHERE total_points > :tp
+              OR (total_points = :tp AND updated_at < :upd)`,
+                    {
+                        replacements: { tp: up.totalPoints, upd: up.updatedAt },
+                        type: QueryTypes.SELECT
+                    }
+                );
+                my_point = {
+                    user: { id: me.id, name: me.name, mobile: me.mobile },
+                    points: {
+                        totalPoints: up.totalPoints,
+                        lastScore: up.lastScore,
+                        lastPlayedAt: up.lastPlayedAt
+                    },
+                    rank: Number(rankRow?.rank ?? 1)
+                };
+            }
+        }
+
+        return res.json({ ok: true, count: results.length, results, my_point });
     } catch (e) { next(e); }
 });
 
