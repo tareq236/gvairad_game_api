@@ -110,10 +110,8 @@ router.post('/verify-otp', async (req, res, next) => {
                 id: user.id,
                 mobile: user.mobile,
                 name: user.name,
-                email: user.email,
-                gender: user.gender,
-                dob: user.dob,
-                address: user.address,
+                territory: user.territory,
+                instituteName: user.instituteName,
                 verifiedAt: user.verifiedAt
             } : null
         });
