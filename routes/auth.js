@@ -72,50 +72,64 @@ router.post('/send-otp', async (req, res, next) => {
 });
 
 router.post('/verify-otp', async (req, res, next) => {
-    try {
-        const { error, value } = Joi.object({
-            mobile: Joi.string().min(6).max(20).required(),
-            code: Joi.string().length(4).required()
-        }).validate(req.body);
-        if (error) return res.status(400).json({ ok: false, message: error.message });
+  try {
+    const { error, value } = Joi.object({
+      mobile: Joi.string().min(6).max(20).required(),
+      code: Joi.string().length(4).required()
+    }).validate(req.body);
 
-        const { mobile, code } = value;
+    if (error) return res.status(400).json({ ok: false, message: error.message });
 
-        const otp = await Otp.findOne({
-            where: { mobile, code, consumedAt: null },
-            order: [['id', 'DESC']]
-        });
+    const { mobile, code } = value;
 
-        if (!otp) return res.status(400).json({ ok: false, message: 'Invalid OTP' });
-        if (dayjs(otp.expiresAt).isBefore(dayjs())) {
-            return res.status(400).json({ ok: false, message: 'OTP expired' });
+    const allowTestBypass =
+      process.env.NODE_ENV !== 'production' &&
+      process.env.ALLOW_TEST_OTP === 'true' &&
+      code === '4444';
+
+    // In bypass mode, accept the latest unconsumed OTP for that mobile (must exist)
+    const otp = await Otp.findOne({
+      where: allowTestBypass
+        ? { mobile, consumedAt: null }
+        : { mobile, code, consumedAt: null },
+      order: [['id', 'DESC']]
+    });
+
+    if (!otp) return res.status(400).json({ ok: false, message: 'Invalid OTP' });
+
+    // Keep expiry check even in bypass mode (recommended)
+    if (dayjs(otp.expiresAt).isBefore(dayjs())) {
+      return res.status(400).json({ ok: false, message: 'OTP expired' });
+    }
+
+    otp.consumedAt = new Date();
+    await otp.save();
+
+    const user = await User.findOne({ where: { mobile } });
+    if (user && !user.verifiedAt) {
+      user.verifiedAt = new Date();
+      await user.save();
+    }
+
+    return res.json({
+      ok: true,
+      verified: true,
+      userAvailable: !!user,
+      user: user
+        ? {
+          id: user.id,
+          mobile: user.mobile,
+          name: user.name,
+          territory: user.territory,
+          instituteName: user.instituteName,
+          verifiedAt: user.verifiedAt
         }
-
-        // consume
-        otp.consumedAt = new Date();
-        await otp.save();
-
-        // if user exists return it; else null
-        const user = await User.findOne({ where: { mobile } });
-        if (user && !user.verifiedAt) {
-            user.verifiedAt = new Date();
-            await user.save();
-        }
-
-        res.json({
-            ok: true,
-            verified: true,
-            userAvailable: !!user,
-            user: user ? {
-                id: user.id,
-                mobile: user.mobile,
-                name: user.name,
-                territory: user.territory,
-                instituteName: user.instituteName,
-                verifiedAt: user.verifiedAt
-            } : null
-        });
-    } catch (e) { next(e); }
+        : null
+    });
+  } catch (e) {
+    next(e);
+  }
 });
+
 
 module.exports = router;
