@@ -5,6 +5,25 @@ const Joi = require('joi');
 const User = require('../models/User');
 const { Op } = require('sequelize');
 
+const serializeUser = (user) => {
+    if (!user) return null;
+
+    return {
+        id: user.id,
+        mobile: user.mobile,
+        phoneNumber: user.mobile,
+        name: user.name,
+        doctorName: user.doctorName || user.name,
+        doctorRplId: user.doctorRplId,
+        mioId: user.mioId,
+        territory: user.territory,
+        instituteName: user.instituteName,
+        verifiedAt: user.verifiedAt,
+        registeredAt: user.registeredAt,
+        lastLoginAt: user.lastLoginAt
+    };
+};
+
 const normalizeCandidates = (mobile) => {
     const raw = (mobile || '').trim();
     const digits = raw.replace(/\D/g, '');
@@ -68,14 +87,7 @@ router.post('/upsert', async (req, res, next) => {
         res.json({
             ok: true,
             created,
-            user: {
-                id: user.id,
-                mobile: user.mobile,
-                name: user.name,
-                territory: user.territory,
-                instituteName: user.instituteName,
-                verifiedAt: user.verifiedAt
-            }
+            user: serializeUser(user)
         });
     } catch (e) { next(e); }
 });
@@ -88,18 +100,13 @@ router.get('/by-mobile', async (req, res, next) => {
         }).validate(req.query);
         if (error) return res.status(400).json({ ok: false, message: error.message });
 
-        const user = await User.findOne({ where: { mobile: value.mobile } });
+        const user = await User.findOne({
+            where: { mobile: { [Op.in]: normalizeCandidates(value.mobile) } }
+        });
 
         return res.json({
             ok: true,
-            user: user ? {
-                id: user.id,
-                mobile: user.mobile,
-                name: user.name,
-                territory: user.territory,
-                instituteName: user.instituteName,
-                verifiedAt: user.verifiedAt
-            } : null
+            user: serializeUser(user)
         });
     } catch (e) { next(e); }
 });

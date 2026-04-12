@@ -3,9 +3,102 @@
   <head>
     <title><%= title %></title>
     <link rel='stylesheet' href='/stylesheets/style.css' />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
   </head>
   <body>
-    <h1><%= title %></h1>
-    <p>Welcome to <%= title %></p>
+    <% const activeMode = mode || 'home'; %>
+    <div class="page-shell">
+      <section class="hero-card">
+        <p class="eyebrow">Gvairad Game</p>
+        <h1><%= title %></h1>
+        <p class="subtitle">
+          Doctor registration and login with the shared password <code>rofuclav</code>.
+        </p>
+
+        <div class="nav-actions">
+          <a class="ghost-btn" href="/register">Registration</a>
+          <a class="ghost-btn" href="/login">Login</a>
+        </div>
+
+        <% if (activeMode === 'home') { %>
+          <div class="info-panel">
+            <h2>Available API endpoints</h2>
+            <p><code>POST /auth/register</code> for doctor onboarding</p>
+            <p><code>POST /auth/login</code> for device/browser login</p>
+            <p><code>GET /auth/me</code> to read the current logged-in doctor</p>
+          </div>
+        <% } else if (activeMode === 'register') { %>
+          <form id="auth-form" data-endpoint="/auth/register" class="auth-form">
+            <label>
+              <span>Doctor Name</span>
+              <input type="text" name="doctorName" placeholder="Doctor Name" required />
+            </label>
+            <label>
+              <span>Doctor RPL ID</span>
+              <input type="text" name="doctorRplId" placeholder="Doctor RPL ID" required />
+            </label>
+            <label>
+              <span>Phone Number</span>
+              <input type="text" name="phoneNumber" placeholder="01XXXXXXXXX" required />
+            </label>
+            <label>
+              <span>MIO ID</span>
+              <input type="text" name="mioId" placeholder="MIO ID" required />
+            </label>
+            <label>
+              <span>Password</span>
+              <input type="password" name="password" value="rofuclav" required />
+            </label>
+            <button type="submit">Submit Registration</button>
+          </form>
+        <% } else { %>
+          <form id="auth-form" data-endpoint="/auth/login" class="auth-form">
+            <label>
+              <span>Phone Number</span>
+              <input type="text" name="phoneNumber" placeholder="01XXXXXXXXX" required />
+            </label>
+            <label>
+              <span>Password</span>
+              <input type="password" name="password" value="rofuclav" required />
+            </label>
+            <button type="submit">Login</button>
+          </form>
+        <% } %>
+
+        <pre id="response-box" class="response-box">Response will appear here.</pre>
+      </section>
+    </div>
+
+    <script>
+      (function () {
+        const form = document.getElementById('auth-form');
+        const box = document.getElementById('response-box');
+        if (!form || !box) return;
+
+        form.addEventListener('submit', async function (event) {
+          event.preventDefault();
+          box.textContent = 'Submitting...';
+
+          const payload = Object.fromEntries(new FormData(form).entries());
+
+          try {
+            const response = await fetch(form.dataset.endpoint, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              credentials: 'include',
+              body: JSON.stringify(payload)
+            });
+
+            const data = await response.json();
+            box.textContent = JSON.stringify(data, null, 2);
+          } catch (error) {
+            box.textContent = JSON.stringify({
+              ok: false,
+              message: error.message
+            }, null, 2);
+          }
+        });
+      })();
+    </script>
   </body>
 </html>
