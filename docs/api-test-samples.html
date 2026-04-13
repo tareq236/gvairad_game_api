@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Gvairad Game API Test Samples</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 32px;
+      color: #1f1f1f;
+      line-height: 1.5;
+    }
+    h1, h2, h3 {
+      color: #115e59;
+    }
+    h1 {
+      border-bottom: 2px solid #115e59;
+      padding-bottom: 8px;
+    }
+    h2 {
+      margin-top: 28px;
+    }
+    h3 {
+      margin-top: 20px;
+    }
+    pre {
+      background: #f4f6f8;
+      border: 1px solid #d7dde4;
+      padding: 12px;
+      white-space: pre-wrap;
+      word-break: break-word;
+      font-size: 12px;
+    }
+    code {
+      font-family: Consolas, monospace;
+    }
+    .note {
+      background: #ecfeff;
+      border-left: 4px solid #0891b2;
+      padding: 10px 12px;
+    }
+  </style>
+</head>
+<body>
+  <h1>Gvairad Game API Test Samples</h1>
+  <p><strong>Base URL:</strong> <code>http://localhost:3000</code></p>
+  <p><strong>Content-Type:</strong> <code>application/json</code> for all POST requests unless noted otherwise.</p>
+
+  <div class="note">
+    <p><strong>Important test flow:</strong> Run registration first, then login, then points APIs. Some APIs depend on an existing user and stored cookie/session.</p>
+    <p><strong>Global password:</strong> <code>rofuclav</code></p>
+  </div>
+
+  <h2>1. Auth APIs</h2>
+
+  <h3>1.1 POST /auth/register</h3>
+  <p><strong>Purpose:</strong> Register a doctor.</p>
+  <pre>{
+  "doctorName": "Dr. Test One",
+  "doctorRplId": "RPL-1001",
+  "phoneNumber": "01712345678",
+  "mioId": "MIO-5001",
+  "password": "rofuclav"
+}</pre>
+  <p><strong>Expected success keys:</strong> <code>ok</code>, <code>created</code>, <code>message</code>, <code>user</code></p>
+
+  <h3>1.2 POST /auth/login</h3>
+  <p><strong>Purpose:</strong> Login from a new browser or device.</p>
+  <pre>{
+  "phoneNumber": "01712345678",
+  "password": "rofuclav"
+}</pre>
+  <p><strong>Expected success keys:</strong> <code>ok</code>, <code>message</code>, <code>user</code></p>
+
+  <h3>1.3 GET /auth/me</h3>
+  <p><strong>Purpose:</strong> Get currently logged-in doctor using auth cookie.</p>
+  <p><strong>Postman note:</strong> Use this after successful login in the same Postman session.</p>
+
+  <h3>1.4 POST /auth/logout</h3>
+  <p><strong>Purpose:</strong> Clear login cookie.</p>
+  <pre>{}</pre>
+
+  <h3>1.5 POST /auth/send-otp</h3>
+  <p><strong>Purpose:</strong> Send OTP to a mobile number.</p>
+  <pre>{
+  "mobile": "01712345678"
+}</pre>
+  <p><strong>Expected success keys:</strong> <code>ok</code>, <code>message</code>, <code>ttlMinutes</code></p>
+
+  <h3>1.6 POST /auth/verify-otp</h3>
+  <p><strong>Purpose:</strong> Verify OTP for a mobile number.</p>
+  <pre>{
+  "mobile": "01712345678",
+  "code": "4444"
+}</pre>
+  <p><strong>Note:</strong> In development, code <code>4444</code> works only when <code>ALLOW_TEST_OTP=true</code> and an unconsumed OTP already exists for that number.</p>
+
+  <h2>2. User APIs</h2>
+
+  <h3>2.1 POST /users/upsert</h3>
+  <p><strong>Purpose:</strong> Create or update user profile fields used by the older flow.</p>
+  <pre>{
+  "mobile": "01712345678",
+  "name": "Dr. Test One",
+  "territory": "12345",
+  "instituteName": "Test Medical College"
+}</pre>
+  <p><strong>Expected success keys:</strong> <code>ok</code>, <code>created</code>, <code>user</code></p>
+
+  <h3>2.2 GET /users/by-mobile?mobile=01712345678</h3>
+  <p><strong>Purpose:</strong> Fetch a user by mobile number.</p>
+
+  <h2>3. Points APIs</h2>
+
+  <h3>3.1 POST /points/add</h3>
+  <p><strong>Purpose:</strong> Add score/points to a user.</p>
+  <pre>{
+  "mobile": "01712345678",
+  "points": 25,
+  "reason": "game_win",
+  "sessionId": "session-001",
+  "meta": {
+    "level": 2,
+    "source": "postman-test"
+  }
+}</pre>
+  <p><strong>Expected success keys:</strong> <code>ok</code>, <code>user</code>, <code>points</code></p>
+
+  <h3>3.2 GET /points/leaderboard</h3>
+  <p><strong>Simple sample:</strong> <code>/points/leaderboard?limit=10&amp;offset=0</code></p>
+  <p><strong>With my_point by mobile:</strong> <code>/points/leaderboard?limit=10&amp;offset=0&amp;mobile=01712345678</code></p>
+  <p><strong>With my_point by userId:</strong> <code>/points/leaderboard?limit=10&amp;offset=0&amp;userId=1</code></p>
+
+  <h3>3.3 GET /points/me?mobile=01712345678</h3>
+  <p><strong>Purpose:</strong> Get one user's total points, last score, and rank.</p>
+
+  <h3>3.4 GET /points/history</h3>
+  <p><strong>By mobile:</strong> <code>/points/history?mobile=01712345678</code></p>
+  <p><strong>By userId:</strong> <code>/points/history?userId=1</code></p>
+  <p><strong>With filter:</strong> <code>/points/history?mobile=01712345678&amp;start=2026-04-01&amp;end=2026-04-12&amp;reason=game_win</code></p>
+
+  <h2>4. Negative Test Samples</h2>
+
+  <h3>4.1 Wrong global password</h3>
+  <pre>{
+  "phoneNumber": "01712345678",
+  "password": "wrongpass"
+}</pre>
+  <p><strong>Expected response:</strong> <code>{ "ok": false, "message": "Invalid global password" }</code></p>
+
+  <h3>4.2 Unknown doctor login</h3>
+  <pre>{
+  "phoneNumber": "01999999999",
+  "password": "rofuclav"
+}</pre>
+  <p><strong>Expected response:</strong> <code>{ "ok": false, "message": "Doctor not found" }</code></p>
+
+  <h3>4.3 Duplicate RPL registration</h3>
+  <pre>{
+  "doctorName": "Dr. Another",
+  "doctorRplId": "RPL-1001",
+  "phoneNumber": "01811111111",
+  "mioId": "MIO-7777",
+  "password": "rofuclav"
+}</pre>
+  <p><strong>Expected response:</strong> <code>{ "ok": false, "message": "Doctor RPL ID already registered" }</code></p>
+
+  <h2>5. Suggested Postman Test Order</h2>
+  <p>1. <code>POST /auth/register</code></p>
+  <p>2. <code>POST /auth/login</code></p>
+  <p>3. <code>GET /auth/me</code></p>
+  <p>4. <code>POST /points/add</code></p>
+  <p>5. <code>GET /points/me</code></p>
+  <p>6. <code>GET /points/leaderboard</code></p>
+  <p>7. <code>GET /points/history</code></p>
+  <p>8. <code>POST /auth/logout</code></p>
+
+  <h2>6. Common Headers</h2>
+  <pre>Content-Type: application/json</pre>
+
+  <h2>7. Browser Pages</h2>
+  <p><code>GET /register</code> opens the doctor registration page.</p>
+  <p><code>GET /login</code> opens the doctor login page.</p>
+</body>
+</html>

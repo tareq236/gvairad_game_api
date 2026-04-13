@@ -245,7 +245,7 @@ router.post('/login', async (req, res, next) => {
             where: { mobile: { [Op.in]: normalizeCandidates(value.phoneNumber) } }
         });
 
-        if (!user) return res.status(404).json({ ok: false, message: 'Doctor not found' });
+        if (!user) return res.status(404).json({ ok: false, message: 'This Phone Number is not yet registered. Please register to Play.' });
 
         user.lastLoginAt = new Date();
         await user.save();
